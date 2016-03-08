@@ -9,16 +9,24 @@
 
 RF24 radio(7, 8);
 
-const uint64_t NODE_ID = 1;
+/*
+Bad    1
+Flur   2
+Schlaf 3
+Küche  4
+Wohn   5
+*/
 
-const uint64_t broadcast = 0x00; //Basisaddresse
+const uint64_t NODE_ID = 2;
+
+const uint64_t securityOffset = 1337; //"Security" by pretending
+const uint8_t broadcast = 0x00; //Base Addr
 const uint64_t address = broadcast + NODE_ID;
 
 #define channel        0x4c                  // nrf24 communication channel
-#define dataRate       RF24_250KBPS          // nrf24 data rate (lower == more distance)
 #define paLevel        RF24_PA_HIGH          // nrf24 power level (black ebay models have some problems with PA_MAX)
 
-byte buf[4];
+byte buf[5];
 
 
 LEDFader r = LEDFader(3);
@@ -37,19 +45,15 @@ void setup() {
   Serial.begin(57600);
   printf_begin();
   radio.begin();
-  //radio.setDataRate(dataRate);
   radio.setPALevel(paLevel);
   radio.setChannel(channel);
-  radio.openReadingPipe(0, address);
-  radio.openReadingPipe(1, broadcast);
+  radio.openReadingPipe(0, securityOffset + address);
+  radio.openReadingPipe(1, securityOffset + broadcast);
   radio.enableDynamicAck();
   radio.setAutoAck(false);
   radio.startListening();
 
-  // Debug Info
-  radio.printDetails();
-
-  //LED Channel Initialisieren
+  //Init LEDs
   pinMode(3, OUTPUT); //R
   analogWrite(3, 0);
   pinMode(9, OUTPUT); //G
@@ -65,6 +69,13 @@ void setup() {
   w.set_curve(&Curve::exponential);
 }
 
+void fade(int delay) {
+  r.fade(buf[1], delay);
+  g.fade(buf[2], delay);
+  b.fade(buf[3], delay);
+  w.fade(buf[4], delay);
+}
+
 void loop() {
   while (radio.available())
   {
@@ -74,39 +85,20 @@ void loop() {
     w.update();
     radio.read(&buf, 5);
 
-
-    //set, slow Fade, fade, fast fade, pulsate, single Pulse
-    // 0,          1,      2    ,   3
-
-    Serial.println(buf[1]);
-    Serial.println(buf[2]);
-    Serial.println(buf[3]);
-    Serial.println(buf[4]);
+    //set, slow Fade, fade, fast fade
+    // 0,          1,    2,   3
     switch (buf[0]) {
       case 0:
-        r.fade(buf[1], 0);
-        g.fade(buf[2], 0);
-        b.fade(buf[3], 0);
-        w.fade(buf[4], 0);
+        fade(0);
         break;
-
       case 1:
-        r.fade(buf[1], 5000);
-        g.fade(buf[2], 5000);
-        b.fade(buf[3], 5000);
-        w.fade(buf[4], 5000);
+        fade(5000);
         break;
       case 2:
-        r.fade(buf[1], 3000);
-        g.fade(buf[2], 3000);
-        b.fade(buf[3], 3000);
-        w.fade(buf[4], 3000);
+        fade(3000);
         break;
       case 3:
-        r.fade(buf[1], 1000);
-        g.fade(buf[2], 1000);
-        b.fade(buf[3], 1000);
-        w.fade(buf[4], 1000);
+        fade(1000);
         break;
         //Buf nullen? gegen unerwartete Ergebnisse
     }
@@ -116,5 +108,4 @@ void loop() {
   b.update();
   w.update();
 }
-
 
